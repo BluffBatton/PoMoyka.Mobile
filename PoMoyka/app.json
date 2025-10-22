@@ -22,7 +22,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.PoMoyka"
+      "package": "com.anonymous.PoMoyka",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDH-ZJy44Od0tfprLN9_qaJs6BlZuFYgGY"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

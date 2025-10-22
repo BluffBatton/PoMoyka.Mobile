@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
-import { CarType, CarTypeNames } from '../constants/CarTypes';
+import { CarType } from '../constants/CarTypes';
 
 const EditCarInfoScreen = () => {
   const navigation = useNavigation<any>();
@@ -49,25 +49,18 @@ const EditCarInfoScreen = () => {
                 style={styles.input}
               />
             </View>
-
-            {/* --- 4. Заменяем TextInput на Picker --- */}
             <Text style={styles.label}>Type of car</Text>
             <View style={styles.pickerContainer}>
               <Picker
-                selectedValue={carType} // Используем числовое значение
-                onValueChange={(itemValue) => setCarType(itemValue)}
-                style={styles.picker}
-                dropdownIconColor="#fff" // Цвет стрелочки
+                selectedValue={carType}
+                onValueChange={(value) => setCarType(value)}
               >
-                {/* Динамически создаем опции */}
-                {CarTypeNames.map((typeName) => (
-                  <Picker.Item
-                    key={typeName}
-                    label={typeName} // Показываем имя типа
-                    value={CarType[typeName as keyof typeof CarType]} // Сохраняем числовое значение
-                  />
-                ))}
+                <Picker.Item label="Select type..." value={null} color="#7b7171" />
+                <Picker.Item label="Hatchback" value={CarType.Hatchback} />
+                <Picker.Item label="Crossover" value={CarType.CrossOver} />
+                <Picker.Item label="SUV" value={CarType.SUV} />
               </Picker>
+
             </View>
             <Text style={styles.label}>License plate</Text>
             <View style={styles.inputContainer}>

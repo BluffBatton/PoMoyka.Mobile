@@ -19,22 +19,14 @@ const LoginScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(false);
   const { onLogin } = useAuth();
 
-  // const handleLogin = async () => {
-  //   if (!email || !password) return;
-  //   setLoading(true);
-  //   try {
-  //     await onLogin!(email, password);
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-
-    const handleLogin = async () => {
+  const handleLogin = async () => {
+    if (!email || !password) return;
     setLoading(true);
-    setTimeout(() => {
+    try {
+      await onLogin!(email, password);
+    } finally {
       setLoading(false);
-      navigation.navigate('Main', { screen: 'Profile' });
-    }, 800);
+    }
   };
   return (
     <GradientBackground>

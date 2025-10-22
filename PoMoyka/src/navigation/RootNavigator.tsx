@@ -11,7 +11,7 @@ import LiqPayScreen from '../screens/LiqPayScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import ProfileEditScreen from '../screens/ProfileEditScreen';
 import { TouchableOpacity, View, StyleSheet } from 'react-native';
-import StationsScreen from '../screens/CentersScreen';
+import CentersScreen from '../screens/CentersScreen';
 import CarEditScreen from '../screens/CarEditScreen';
 
 const Stack = createNativeStackNavigator();
@@ -53,7 +53,7 @@ function MainTabs() {
       />
       <Tab.Screen
         name="Map"
-        component={StationsScreen}
+        component={CentersScreen}
         options={{
           tabBarLabel: 'Map',
           tabBarIcon: ({ focused }) => (
@@ -81,27 +81,16 @@ function MainTabs() {
 }
 
 export default function RootNavigator() {
-  // const { authState } = useAuth();
+const { authState } = useAuth();
   
-return (
+return authState.authenticated ? (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-      }}
-    >
+      }}>
       <Stack.Screen
         name="Main"
         component={MainTabs}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Login"
-        component={LoginScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Register"
-        component={RegisterScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
@@ -118,6 +107,22 @@ return (
         name="CarEdit"
         component={CarEditScreen}
         options={{ title: 'Edit Car', headerShown: false }}
+      />
+    </Stack.Navigator>
+) : (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+      }}>
+      <Stack.Screen
+        name="Login"
+        component={LoginScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Register"
+        component={RegisterScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

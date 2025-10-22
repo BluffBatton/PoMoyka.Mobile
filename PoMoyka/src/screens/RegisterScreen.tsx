@@ -1,58 +1,42 @@
 import React, { useState } from 'react';
-import {
-  SafeAreaView,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Alert,
-} from 'react-native';
+import { SafeAreaView, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert, } from 'react-native';
 import GradientBackground from '../components/ScreenWrapper';
 import { useNavigation } from '@react-navigation/native';
 import { Picker } from '@react-native-picker/picker';
+import { useAuth, RegisterParams } from '../context/AuthContext';
+
+const carTypeOptions = ["hatchback", "crossOver", "suv"];
 
 export default function MultiStepSignUp() {
   const navigation = useNavigation<any>();
+  const { onRegister } = useAuth();
+
   const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    name: '',
-    surname: '',
+    firstName: '',
+    lastName: '',
     email: '',
     password: '',
     carModel: '',
-    carType: '',
+    carType: carTypeOptions[0],
     licensePlate: '',
   });
-
-  interface Form {
-    name: string;
-    surname: string;
-    email: string;
-    password: string;
-    carModel: string;
-    carType: string;
-    licensePlate: string;
-  }
-
   enum CarType {
         Hatchback = "Hatchback",
         CrossOver = "CrossOver",
         SUV = "SUV"
 }
 
-  type FormField = keyof Form;
+  type FormField = keyof typeof form;
 
   function update(field: FormField, value: string): void {
-    setForm((prev: Form) => ({ ...prev, [field]: value }));
+    setForm((prev) => ({ ...prev, [field]: value }));
   }
 
   function next() {
     // basic step validation
-    if (step === 0 && (!form.name.trim() || !form.surname.trim())) {
+    if (step === 0 && (!form.firstName.trim() || !form.lastName.trim())) {
       Alert.alert('Error', 'Please, fill in name and surname');
       return;
     }
@@ -67,15 +51,48 @@ export default function MultiStepSignUp() {
     setStep(s => Math.max(s - 1, 0));
   }
 
-  function submit() {
-    if (!form.carModel.trim() || !form.carType.trim() || !form.licensePlate.trim()) {
-      Alert.alert('Error', 'Please, fill in all car details');
-      return;
+async function submit() {
+        if (!form.carModel.trim() || form.carType === '' || !form.licensePlate.trim()) {
+            Alert.alert('Error', 'Please, fill in all car details');
+            return;
+        }
+
+        // 6. Формируем ОБЪЕКТ params, как ожидает AuthContext
+        const params: RegisterParams = {
+            firstName: form.firstName.trim(),
+            lastName: form.lastName.trim(),
+            email: form.email.trim().toLowerCase(),
+            passwordHash: form.password, // Отправляем пароль
+            car: {
+                name: form.carModel.trim(),
+                licensePlate: form.licensePlate.trim().toUpperCase(),
+                carType: form.carType, // Отправляем СТРОКУ
+            }
+        };
+
+        try {
+            setLoading(true);
+            console.log('📦 Registration params:', JSON.stringify(params, null, 2));
+
+            // 7. Вызываем onRegister из AuthContext с ОДНИМ объектом params
+            const response = await onRegister(params);
+
+            console.log('🛰️ Server response:', response);
+
+            if (response?.error || !response?.ok) { // Проверяем ответ от AuthContext
+                Alert.alert('Registration failed', response?.error?.message || 'Unknown error');
+            } else {
+                Alert.alert('✅ Success', 'Registration successful! Now log in.');
+                navigation.navigate('Login'); // Переход на логин после успеха
+            }
+        } catch (err: any) {
+            console.error('❌ Registration submit error:', err);
+            Alert.alert('Error', err.message || 'Something went wrong during submission');
+        } finally {
+            setLoading(false);
+        }
     }
-    // TODO: call API
-    Alert.alert('Success', `Data: ${JSON.stringify(form)}`);
-    navigation.navigate('Main', { screen: 'Profile' });
-  }
+
 
   const progress = [0, 1, 2];
 
@@ -106,8 +123,8 @@ export default function MultiStepSignUp() {
             <View style={styles.formArea}>
               {step === 0 && (
                 <View>
-                  <Input label="Name" placeholder="Enter name" value={form.name} onChangeText={v => update('name', v)} icon={'👤'} />
-                  <Input label="Surname" placeholder="Enter surname" value={form.surname} onChangeText={v => update('surname', v)} icon={'👥'} />
+                  <Input label="Name" placeholder="Enter name" value={form.firstName} onChangeText={v => update('firstName', v)} icon={'👤'} />
+                  <Input label="Surname" placeholder="Enter surname" value={form.lastName} onChangeText={v => update('lastName', v)} icon={'👥'} />
                 </View>
               )}
 
@@ -118,32 +135,30 @@ export default function MultiStepSignUp() {
                 </View>
               )}
 
-              {step === 2 && (
-                <View>
-                  <Input label="Car Model" placeholder="Ford Escape 2020" value={form.carModel} onChangeText={v => update('carModel', v)} icon={'🚗'} />
-                  <View style={styles.inputWrap}>
-                    <View style={styles.inputRow}>
-                      <Text style={styles.inputIcon}>🏷️</Text>
-                      <Text style={styles.inputLabel}>Type of car</Text>
-                    </View>
-                    <View style={styles.pickerContainer}>
-                      <Picker
-                        selectedValue={form.carType}
-                        onValueChange={(v) => update('carType', v)}
-                        style={styles.picker}
-                        dropdownIconColor="#fff"
-                      >
-                        <Picker.Item label="Select type..." value="" color="#7b7171" />
-                        {Object.values(CarType).map((type) => (
-                          <Picker.Item key={type} label={type} value={type} color="#fff" />
-                        ))}
-                      </Picker>
-                    </View>
+            {step === 2 && (
+              <View>
+                <Input label="Car Model" placeholder="Ford Escape 2020" value={form.carModel} onChangeText={v => update('carModel', v)} icon={'🚗'} />
+                <View style={styles.inputWrap}>
+                  <View style={styles.inputRow}>
+                    <Text style={styles.inputIcon}>🏷️</Text>
+                    <Text style={styles.inputLabel}>Type of car</Text>
                   </View>
-
-                  <Input label="License plate" placeholder="AX 0000 BC" value={form.licensePlate} onChangeText={v => update('licensePlate', v)} icon={'🔢'} />
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={form.carType}
+                      onValueChange={(v) => update('carType', String(v))} // всё ещё строка, но будем конвертировать ниже
+                    >
+                      <Picker.Item label="Select type..." value="" color="#7b7171" />
+                      <Picker.Item label="Hatchback" value={CarType.Hatchback} />
+                      <Picker.Item label="Crossover" value={CarType.CrossOver} />
+                      <Picker.Item label="SUV" value={CarType.SUV} />
+                    </Picker>
+                  </View>
                 </View>
-              )}
+
+                <Input label="License plate" placeholder="AX 0000 BC" value={form.licensePlate} onChangeText={v => update('licensePlate', v)} icon={'🔢'} />
+              </View>
+            )}
             </View>
 
             {/* Footer buttons */}

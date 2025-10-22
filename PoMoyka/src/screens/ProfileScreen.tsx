@@ -1,43 +1,102 @@
 // src/screens/ProfileScreen.tsx
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-} from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import GradientBackground from '../components/ScreenWrapper';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { API_URL, useAuth } from '../context/AuthContext';
+import axios from 'axios';
+
+interface UserProfileData {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+}
 
 export default function ProfileScreen() {
   const navigation = useNavigation<any>();
+  const { onLogout } = useAuth();
 
-  const handleLogout = () => {
-    console.log('Logged out');
-    navigation.navigate('Login');
-  };
+  const [userData, setUserData] = useState<UserProfileData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+  
+const fetchProfile = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const response = await axios.get<UserProfileData>(`${API_URL}/api/User/GetMyProfile/profile`);
+            setUserData(response.data);
+            console.log("Profile data loaded:", response.data);
+        } catch (err: any) {
+            console.error("Failed to fetch profile:", err);
+            setError(err.response?.data?.message || err.message || "Could not fetch profile data.");
+            if (err.response?.status === 401) {
+                Alert.alert("Session expired", "Please log in again.");
+                await onLogout();
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    }, [onLogout]);
 
+    useFocusEffect(
+        useCallback(() => {
+            fetchProfile();
+        }, [fetchProfile])
+    );
+
+    const handleLogout = async () => {
+        Alert.alert(
+            "Log out",
+            "Are you sure you want to log out?",
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Yes, log out",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await onLogout();
+                        } catch (e) {
+                            console.error("Logout error:", e);
+                            Alert.alert("Error", "Failed to log out. Try again.");
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    if (!userData) {
+        return (
+             <GradientBackground>
+                <View style={[styles.container, styles.centerContent]}>
+                    <Text style={styles.errorText}>No user data available.</Text>
+                     <TouchableOpacity style={styles.tabLogout} onPress={handleLogout}>
+                       <Text style={styles.tabLogoutText}>Log out</Text>
+                     </TouchableOpacity>
+                </View>
+            </GradientBackground>
+        );
+    }
   return (
     <GradientBackground>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
-          {/* <TouchableOpacity onPress={() => navigation.goBack()}>
-            <MaterialIcons name="arrow-back-ios" size={24} color="#fff" />
-          </TouchableOpacity> */}
           <Text style={styles.headerTitle}>My Profile</Text>
           <View style={{ width: 24 }} /> 
         </View>
         <View style={styles.profileInfo}>
           <Image
             source={{
-              uri: 'https://i.pravatar.cc/150?img=3',
+              uri: `https://i.pravatar.cc/150?u=${userData.id}`,
             }}
             style={styles.avatar}
           />
-          <Text style={styles.name}>Adam Kadirov</Text>
+          <Text style={styles.name}>{userData.firstName} {userData.lastName}</Text>
 
           <View style={styles.buttonRow}>
             <TouchableOpacity style={styles.tabActive}>
@@ -56,7 +115,7 @@ export default function ProfileScreen() {
             <MaterialIcons name="email" size={20} color="#ccc" />
             <View style={styles.infoText}>
               <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>adamkadirov@gmail.com</Text>
+              <Text style={styles.infoValue}>{userData.email}</Text>
             </View>
           </View>
 
@@ -185,4 +244,15 @@ const styles = StyleSheet.create({
     color: '#aaa',
     fontSize: 13,
   },
+  centerContent: { // Стиль для центрирования
+        justifyContent: 'center',
+        alignItems: 'center',
+        flex: 1, // Чтобы занимал весь экран
+    },
+    errorText: {
+        color: '#ff6b6b', // Красный цвет для ошибки
+        textAlign: 'center',
+        marginBottom: 20,
+        fontSize: 16,
+    },
 });
