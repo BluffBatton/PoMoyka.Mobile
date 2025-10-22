@@ -1,38 +1,78 @@
 // src/screens/ProfileEditScreen.tsx
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Image,
-  Platform,
-  KeyboardAvoidingView,
-  ScrollView,
-  Alert,
-} from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Platform, KeyboardAvoidingView, ScrollView, Alert, ActivityIndicator, } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { API_URL, useAuth } from '../context/AuthContext';
+import axios from 'axios';
+
+interface UserProfileData {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+}
+
+interface UserUpdateData {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    password?: string | null;
+}
 
 const ProfileEditScreen = () => {
-  const navigation = useNavigation<any>();
+    const navigation = useNavigation<any>();
+    const { authState, onLogout } = useAuth(); 
 
-  // initial values (як на скріні)
-  const [firstName, setFirstName] = useState('Adam');
-  const [surname, setSurname] = useState('Kadirov');
-  const [email, setEmail] = useState('adamkadirov@gmail.com');
-  const [password, setPassword] = useState('password123');
-  const [avatarUri, setAvatarUri] = useState<string | null>(
-    'https://i.pravatar.cc/300?img=12' // заміни на локальний asset якщо потрібно
-  );
+    const [firstName, setFirstName] = useState('');
+    const [lastName, setLastName] = useState('');
+    const [email, setEmail] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [avatarUri, setAvatarUri] = useState<string | null>(null);
+    const [initialAvatarUrl, setInitialAvatarUrl] = useState<string | null>(null);
+
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+useFocusEffect(
+        useCallback(() => {
+            const fetchUserData = async () => {
+                console.log("Loading profile");
+                setLoading(true);
+                setError(null);
+                try {
+                    const response = await axios.get<UserProfileData>(`${API_URL}/api/User/GetMyProfile`, {
+                        headers: { Authorization: `Bearer ${authState.token}` }
+                    });
+                    const userData = response.data;
+                    setFirstName(userData.firstName);
+                    setLastName(userData.lastName);
+                    setEmail(userData.email);
+                    setNewPassword('');
+                    setAvatarUri(null);
+                    console.log("Profile has been loaded:", userData);
+                } catch (err: any) {
+                    console.error("Failed to fetch profile:", err);
+                    setError(err.response?.data?.message || err.message || "Could not fetch profile data.");
+                    if (err.response?.status === 401) {
+                        Alert.alert("Session expired", "Please log in again.");
+                        await onLogout();
+                    }
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            fetchUserData();
+        }, [authState.token, onLogout])
+    );
 
   const pickImage = async () => {
     try {
-      // попросимо дозвіл (iOS)
       if (Platform.OS !== 'web') {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
@@ -48,23 +88,55 @@ const ProfileEditScreen = () => {
       });
 
     if (!result.canceled) { 
-      // @ts-ignore // <- Можно убрать @ts-ignore, т.к. result.uri теперь точно существует
-      setAvatarUri(result.assets[0].uri); // <- Лучше брать uri из массива assets
+      
+      setAvatarUri(result.assets[0].uri); 
     }
     } catch (err) {
       console.warn('Image pick error', err);
     }
   };
 
-  const handleSave = () => {
-    setSaving(true);
-    // Тут — виклик API збереження профілю
-    setTimeout(() => {
-      setSaving(false);
-      Alert.alert('Saved', 'Your profile changes were saved.');
-      navigation.goBack(); // повернутись до профілю
-    }, 900);
-  };
+const handleSave = async () => {
+        if (!firstName.trim() || !lastName.trim() || !email.trim()) {
+            Alert.alert('Error', 'First name, last name, and email are required.');
+            return;
+        }
+
+        setSaving(true);
+        setError(null);
+
+        const updateDto: UserUpdateData = {
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            email: email.trim().toLowerCase(),
+           
+            password: newPassword ? newPassword : null
+        };
+
+        try {
+            await axios.put(`${API_URL}/api/User/UpdateMyProfile`, updateDto, {
+                 headers: { Authorization: `Bearer ${authState.token}` }
+             });
+            Alert.alert('Saved', 'Info has been changed.');
+            navigation.goBack();
+
+        } catch (err: any) {
+            console.error("Save profile error:", err.response?.data || err.message);
+            const message = err.response?.data?.message || err.message || "Unable to save profile.";
+            setError(message);
+            Alert.alert('Saving Error', message);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (loading) {
+         return (
+             <LinearGradient colors={['#0f0f10', '#0b0b0c']} style={[styles.bg, styles.centerContent]}>
+                 <ActivityIndicator size="large" color="#fff"/>
+             </LinearGradient>
+         );
+    }
 
   return (
     <LinearGradient colors={['#0f0f10', '#0b0b0c']} style={styles.bg}>
@@ -87,55 +159,30 @@ const ProfileEditScreen = () => {
               <MaterialIcons name="photo-camera" size={18} color="#fff" />
             </TouchableOpacity>
           </View>
-
           <View style={styles.form}>
+
             <Text style={styles.label}>First Name</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                value={firstName}
-                onChangeText={setFirstName}
-                placeholder="First Name"
-                placeholderTextColor="#7b7b7b"
-                style={styles.input}
-              />
-            </View>
-
-            <Text style={styles.label}>Surname</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                value={surname}
-                onChangeText={setSurname}
-                placeholder="Surname"
-                placeholderTextColor="#7b7b7b"
-                style={styles.input}
-              />
-            </View>
-
+               <View style={styles.inputContainer}>
+                   <TextInput value={firstName} onChangeText={setFirstName} /*...*/ style={styles.input} />
+               </View>
+            <Text style={styles.label}>Last Name</Text>
+                <View style={styles.inputContainer}>
+                   <TextInput value={lastName} onChangeText={setLastName} /*...*/ style={styles.input} />
+                </View>
             <Text style={styles.label}>Email</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Email"
-                placeholderTextColor="#7b7b7b"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                style={styles.input}
-              />
-            </View>
-
-            <Text style={styles.label}>Password</Text>
-            <View style={styles.inputContainer}>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Password"
-                placeholderTextColor="#7b7b7b"
-                secureTextEntry
-                style={styles.input}
-              />
-            </View>
-
+                <View style={styles.inputContainer}>
+                    <TextInput value={email} onChangeText={setEmail} /*...*/ style={styles.input} />
+                </View>
+            <Text style={styles.label}>New Password (optional)</Text>
+                <View style={styles.inputContainer}>
+                    <TextInput
+                        onChangeText={setNewPassword} // Просто обновляем стейт
+                        placeholder="Enter new password to change" // Пояснение
+                        placeholderTextColor="#7b7b7b"
+                        secureTextEntry
+                        style={styles.input}
+                      />
+                </View>
             <TouchableOpacity onPress={handleSave} activeOpacity={0.85} style={{ width: '100%' }}>
               <LinearGradient
                 colors={['#9E6A52', '#38261D']}
@@ -236,6 +283,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
+  centerContent: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
 });
 
 export default ProfileEditScreen;

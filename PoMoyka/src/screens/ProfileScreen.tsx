@@ -27,7 +27,7 @@ const fetchProfile = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const response = await axios.get<UserProfileData>(`${API_URL}/api/User/GetMyProfile/profile`);
+            const response = await axios.get<UserProfileData>(`${API_URL}/api/User/GetMyProfile`);
             setUserData(response.data);
             console.log("Profile data loaded:", response.data);
         } catch (err: any) {
