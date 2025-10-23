@@ -82,11 +82,11 @@ async function submit() {
             if (response?.error || !response?.ok) { // Проверяем ответ от AuthContext
                 Alert.alert('Registration failed', response?.error?.message || 'Unknown error');
             } else {
-                Alert.alert('✅ Success', 'Registration successful! Now log in.');
+                Alert.alert('Success', 'Registration successful! Now log in.');
                 navigation.navigate('Login'); // Переход на логин после успеха
             }
         } catch (err: any) {
-            console.error('❌ Registration submit error:', err);
+            console.error('Registration submit error:', err);
             Alert.alert('Error', err.message || 'Something went wrong during submission');
         } finally {
             setLoading(false);

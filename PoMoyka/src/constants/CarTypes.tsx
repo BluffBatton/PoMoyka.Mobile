@@ -17,3 +17,5 @@ export function getCarTypeName(value: CarType): string | undefined {
 export function getCarTypeValue(name: string): CarType | undefined {
     return CarType[name as keyof typeof CarType];
 }
+
+export const carTypeOptions = ["hatchback", "crossOver", "suv"];
