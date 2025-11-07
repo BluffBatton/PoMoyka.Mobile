@@ -6,11 +6,11 @@ const GradientBackground = ({ children }: { children?: React.ReactNode }) => {
   return (
     <LinearGradient
       colors={[
-        'rgba(2,0,36,1)',       // тёмно-синий почти чёрный
-        'rgba(134,148,180,1)',  // серо-синий светлый оттенок
+        'rgba(2,0,36,1)',
+        'rgba(134,148,180,1)',
       ]}
-      locations={[0.5, 1]}        // 60% и 100% как в CSS
-      start={{ x: 0.2, y: 0.5 }}    // 90deg → горизонтально слева направо
+      locations={[0.5, 1]}
+      start={{ x: 0.2, y: 0.5 }}
       end={{ x: 1, y: 0 }}
       style={styles.gradient}
     >
