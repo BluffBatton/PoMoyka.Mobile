@@ -13,6 +13,8 @@ import ProfileEditScreen from '../screens/ProfileEditScreen';
 import { TouchableOpacity, View, StyleSheet } from 'react-native';
 import CentersScreen from '../screens/CentersScreen';
 import CarEditScreen from '../screens/CarEditScreen';
+import ConfirmOrderScreen from '../screens/ConfirmOrderScreen';
+import OrderConfirmedScreen from '../screens/OrderConfirmedScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -107,6 +109,16 @@ return authState.authenticated ? (
         name="CarEdit"
         component={CarEditScreen}
         options={{ title: 'Edit Car', headerShown: false }}
+      />
+      <Stack.Screen
+        name="ConfirmOrder"
+        component={ConfirmOrderScreen}
+        options={{ title: 'Edit Car', headerShown: false }}
+      />
+      <Stack.Screen
+        name="OrderConfirmed"
+        component={OrderConfirmedScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
 ) : (

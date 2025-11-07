@@ -1,75 +1,79 @@
-// src/screens/LiqPayScreen.tsx
-import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StyleSheet, Alert } from 'react-native';
-import { WebView } from 'react-native-webview';
-import { useRoute, useNavigation, CommonActions } from '@react-navigation/native';
-import { useAuth, API_URL } from '../context/AuthContext';
+import React from "react";
+import { View, ActivityIndicator, Alert, Linking, Platform } from "react-native";
+import { WebView } from "react-native-webview";
 
-export default function LiqPayScreen() {
-  const { authState } = useAuth();
-  const route      = useRoute<any>();
-  const navigation = useNavigation<any>();
-  const { amount, fuel_type, liters } = route.params;
-  const [html, setHtml] = useState<string|null>(null);
-  const GLOBAL_API_URL = 'https://gregarious-happiness-production.up.railway.app';
+export default function LiqPayScreen({ route, navigation }: any) {
+  const { data, signature } = route.params;
+  const [isHandled, setIsHandled] = React.useState(false);
 
-  useEffect(() => {
-    fetch(
-      `${GLOBAL_API_URL}/api/liqpay/pay/?amount=${amount}&liters=${liters}&fuel_type=${encodeURIComponent(fuel_type)}`,
-      { 
-        headers: { 
-          'Accept': 'text/html',
-          'Authorization': `Bearer ${authState?.token}`
-        },
-      }
-    )
-    .then(res => {
-      if (res.status === 401) {
-        Alert.alert('Error', 'Log in first');
-        return '';
-      }
-      return res.text();
-    })
-    .then(setHtml)
-    .catch(err => {
-      console.error(err);
-      Alert.alert('Error', 'Unable to load payment page');
-    });
-  }, [amount, fuel_type, authState]);
+  const handleNavigationChange = (navState: any) => {
+    if (isHandled) return;
 
-  const onNavigationStateChange = (navState: any) => {
-    if (navState.url.includes('/api/liqpay/result/')) {
-      navigation.navigate('Main', { screen: 'Wallet', });
+    const url = navState.url.toLowerCase();
+    console.log("Nav:", url);
+
+    if (url.includes("checkout/success") || url.includes("result/success") || url.includes("sandbox")) {
+      setIsHandled(true);
+      console.log("Payment is succesful");
+
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "OrderConfirmed" }],
+        });
+      }, 500);
+    } else if (url.includes("checkout/fail") || url.includes("result/fail") || url.includes("error")) {
+      setIsHandled(true);
+      console.log("Payment is failed");
+      Alert.alert("Error", "Payment doesn't passed.");
+      navigation.goBack();
     }
   };
 
-  if (!html) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
+  const handleShouldStartLoadWithRequest = (request: any) => {
+    const url = request.url;
+    console.log("Attempt to open:", url);
+
+    if (
+      url.startsWith("https://www.liqpay.ua") ||
+      url.startsWith("https://liqpay.ua") ||
+      url.startsWith("about:blank")
+    ) {
+      return true; 
+    }
+
+    if (Platform.OS !== "web") {
+      Linking.openURL(url).catch((err) => console.warn("Unable to open link:", err));
+    }
+    return false;
+  };
 
   return (
-    <WebView
-      originWhitelist={['*']}
-      source={{ html }}
-      onNavigationStateChange={navState => {
-        const url = navState.url;
-        if (url.startsWith(`${GLOBAL_API_URL}/api/liqpay/result`)) {
-          navigation.navigate('Main', { screen: 'Wallet' });
-        }
-      }}
-      mixedContentMode="always"
-    />
+    <View style={{ flex: 1 }}>
+      <WebView
+        originWhitelist={["*"]}
+        source={{
+          html: `
+            <form id="liqpay" method="POST" action="https://www.liqpay.ua/api/3/checkout" accept-charset="utf-8">
+              <input type="hidden" name="data" value="${data}" />
+              <input type="hidden" name="signature" value="${signature}" />
+              <script type="text/javascript">
+                console.log('Sending form on LiqPay');
+                document.getElementById("liqpay").submit();
+              </script>
+            </form>
+          `,
+        }}
+        javaScriptEnabled={true}
+        domStorageEnabled={true}
+        startInLoadingState
+        javaScriptCanOpenWindowsAutomatically={true}
+        onNavigationStateChange={handleNavigationChange}
+        onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+        renderLoading={() => (
+          <ActivityIndicator size="large" color="#9E6A52" style={{ marginTop: 40 }} />
+        )}
+      />
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  center: { 
-    flex:1, 
-    justifyContent:'center', 
-    alignItems:'center' 
-  },
-});

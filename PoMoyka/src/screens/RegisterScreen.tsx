@@ -57,16 +57,15 @@ async function submit() {
             return;
         }
 
-        // 6. Формируем ОБЪЕКТ params, как ожидает AuthContext
         const params: RegisterParams = {
             firstName: form.firstName.trim(),
             lastName: form.lastName.trim(),
             email: form.email.trim().toLowerCase(),
-            passwordHash: form.password, // Отправляем пароль
+            passwordHash: form.password, 
             car: {
                 name: form.carModel.trim(),
                 licensePlate: form.licensePlate.trim().toUpperCase(),
-                carType: form.carType, // Отправляем СТРОКУ
+                carType: form.carType,
             }
         };
 
@@ -74,16 +73,15 @@ async function submit() {
             setLoading(true);
             console.log('📦 Registration params:', JSON.stringify(params, null, 2));
 
-            // 7. Вызываем onRegister из AuthContext с ОДНИМ объектом params
             const response = await onRegister(params);
 
             console.log('🛰️ Server response:', response);
 
-            if (response?.error || !response?.ok) { // Проверяем ответ от AuthContext
+            if (response?.error || !response?.ok) { 
                 Alert.alert('Registration failed', response?.error?.message || 'Unknown error');
             } else {
                 Alert.alert('Success', 'Registration successful! Now log in.');
-                navigation.navigate('Login'); // Переход на логин после успеха
+                navigation.navigate('Login'); 
             }
         } catch (err: any) {
             console.error('Registration submit error:', err);
@@ -146,7 +144,7 @@ async function submit() {
                   <View style={styles.pickerContainer}>
                     <Picker
                       selectedValue={form.carType}
-                      onValueChange={(v) => update('carType', String(v))} // всё ещё строка, но будем конвертировать ниже
+                      onValueChange={(v) => update('carType', String(v))}
                     >
                       <Picker.Item label="Select type..." value="" color="#7b7171" />
                       <Picker.Item label="Hatchback" value={CarType.Hatchback} />
