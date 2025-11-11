@@ -1,6 +1,15 @@
 // src/screens/ProfileScreen.tsx
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import GradientBackground from '../components/ScreenWrapper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -8,11 +17,11 @@ import { API_URL, useAuth } from '../context/AuthContext';
 import axios from 'axios';
 
 interface UserProfileData {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    role: string;
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: string;
 }
 
 export default function ProfileScreen() {
@@ -20,83 +29,133 @@ export default function ProfileScreen() {
   const { onLogout } = useAuth();
 
   const [userData, setUserData] = useState<UserProfileData | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-  
-const fetchProfile = useCallback(async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const response = await axios.get<UserProfileData>(`${API_URL}/api/User/GetMyProfile`);
-            setUserData(response.data);
-            console.log("Profile data loaded:", response.data);
-        } catch (err: any) {
-            console.error("Failed to fetch profile:", err);
-            setError(err.response?.data?.message || err.message || "Could not fetch profile data.");
-            if (err.response?.status === 401) {
-                Alert.alert("Session expired", "Please log in again.");
-                await onLogout();
-            }
-        } finally {
-            setIsLoading(false);
-        }
-    }, [onLogout]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    useFocusEffect(
-        useCallback(() => {
-            fetchProfile();
-        }, [fetchProfile])
-    );
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
 
-    const handleLogout = async () => {
-        Alert.alert(
-            "Log out",
-            "Are you sure you want to log out?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Yes, log out",
-                    style: "destructive",
-                    onPress: async () => {
-                        try {
-                            await onLogout();
-                        } catch (e) {
-                            console.error("Logout error:", e);
-                            Alert.alert("Error", "Failed to log out. Try again.");
-                        }
-                    },
-                },
-            ]
-        );
-    };
-
-    if (!userData) {
-        return (
-             <GradientBackground>
-                <View style={[styles.container, styles.centerContent]}>
-                    <Text style={styles.errorText}>No user data available.</Text>
-                     <TouchableOpacity style={styles.tabLogout} onPress={handleLogout}>
-                       <Text style={styles.tabLogoutText}>Log out</Text>
-                     </TouchableOpacity>
-                </View>
-            </GradientBackground>
-        );
+  const fetchProfile = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await axios.get<UserProfileData>(
+        `${API_URL}/api/User/GetMyProfile`
+      );
+      setUserData(response.data);
+      console.log('Profile data loaded:', response.data);
+    } catch (err: any) {
+      console.error('Failed to fetch profile:', err);
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          'Could not fetch profile data.'
+      );
+      if (err.response?.status === 401) {
+        Alert.alert('Session expired', 'Please log in again.');
+        await onLogout();
+      }
+    } finally {
+      setIsLoading(false);
     }
+  }, [onLogout]);
+
+  const fetchAvatar = useCallback(async () => {
+    setAvatarLoading(true);
+    try {
+      const resp = await axios.get<string>(
+        `${API_URL}/api/User/GetUserImageUrl`
+      );
+      const url = resp.data;
+      if (url && typeof url === 'string' && url.trim().length > 0) {
+        setAvatarUrl(url);
+      } else {
+        setAvatarUrl(null);
+      }
+    } catch (e) {
+      console.log('No avatar or error getting avatar:', e);
+      setAvatarUrl(null);
+    } finally {
+      setAvatarLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+      fetchAvatar();
+    }, [fetchProfile, fetchAvatar])
+  );
+
+  const handleLogout = async () => {
+    Alert.alert('Log out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Yes, log out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await onLogout();
+          } catch (e) {
+            console.error('Logout error:', e);
+            Alert.alert('Error', 'Failed to log out. Try again.');
+          }
+        },
+      },
+    ]);
+  };
+
+  if (isLoading && !userData) {
+    return (
+      <GradientBackground>
+        <View style={[styles.container, styles.centerContent]}>
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
+      </GradientBackground>
+    );
+  }
+
+  if (!userData) {
+    return (
+      <GradientBackground>
+        <View style={[styles.container, styles.centerContent]}>
+          <Text style={styles.errorText}>
+            {error || 'No user data available.'}
+          </Text>
+          <TouchableOpacity style={styles.tabLogout} onPress={handleLogout}>
+            <Text style={styles.tabLogoutText}>Log out</Text>
+          </TouchableOpacity>
+        </View>
+      </GradientBackground>
+    );
+  }
+
+  const finalAvatarSource = avatarUrl
+    ? { uri: avatarUrl }
+    : { uri: `https://i.pravatar.cc/150?u=${userData.id}` };
+
   return (
     <GradientBackground>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>My Profile</Text>
-          <View style={{ width: 24 }} /> 
+          <View style={{ width: 24 }} />
         </View>
+
         <View style={styles.profileInfo}>
-          <Image
-            source={{
-              uri: `https://i.pravatar.cc/150?u=${userData.id}`,
-            }}
-            style={styles.avatar}
-          />
-          <Text style={styles.name}>{userData.firstName} {userData.lastName}</Text>
+          <View style={styles.avatarWrapper}>
+            <Image source={finalAvatarSource} style={styles.avatar} />
+
+            {avatarLoading && (
+              <View style={styles.avatarOverlay}>
+                <ActivityIndicator size="small" color="#fff" />
+              </View>
+            )}
+          </View>
+
+          <Text style={styles.name}>
+            {userData.firstName} {userData.lastName}
+          </Text>
 
           <View style={styles.buttonRow}>
             <TouchableOpacity style={styles.tabActive}>
@@ -131,9 +190,9 @@ const fetchProfile = useCallback(async () => {
           </TouchableOpacity>
 
           <TouchableOpacity
-           style={styles.infoItem}
-           onPress={() => navigation.navigate('CarEdit')}
-           >
+            style={styles.infoItem}
+            onPress={() => navigation.navigate('CarEdit')}
+          >
             <MaterialIcons name="directions-car" size={20} color="#ccc" />
             <View style={styles.infoText}>
               <Text style={styles.infoLabel}>Edit car info</Text>
@@ -178,17 +237,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 30,
   },
-  avatar: {
+  avatarWrapper: {
     width: 90,
     height: 90,
     borderRadius: 45,
+    position: 'relative',
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 45,
     marginBottom: 14,
+  },
+  avatarOverlay: {
+    position: 'absolute',
+    inset: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 45,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   name: {
     color: '#fff',
     fontSize: 20,
     fontWeight: '700',
     marginBottom: 16,
+    marginTop: 10,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -244,15 +318,15 @@ const styles = StyleSheet.create({
     color: '#aaa',
     fontSize: 13,
   },
-  centerContent: { // Стиль для центрирования
-        justifyContent: 'center',
-        alignItems: 'center',
-        flex: 1, // Чтобы занимал весь экран
-    },
-    errorText: {
-        color: '#ff6b6b', // Красный цвет для ошибки
-        textAlign: 'center',
-        marginBottom: 20,
-        fontSize: 16,
-    },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    flex: 1,
+  },
+  errorText: {
+    color: '#ff6b6b',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontSize: 16,
+  },
 });

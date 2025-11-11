@@ -34,6 +34,7 @@ function CustomTabBarButton({ children, onPress }: any) {
 function MainTabs() {
   return (
     <Tab.Navigator
+      initialRouteName="Map"   // ✅ добавь это
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,
