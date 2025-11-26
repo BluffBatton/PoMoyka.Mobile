@@ -41,6 +41,7 @@ export default function CentersScreen() {
   const [mapReady, setMapReady] = useState(false);
   const [centers, setCenters] = useState<CenterMapDto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetched, setIsFetched] = useState(false); // Флаг для отслеживания загрузки
   const [selectedCenter, setSelectedCenter] = useState<CenterPricelistDto | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -48,20 +49,52 @@ export default function CentersScreen() {
   useFocusEffect(
     useCallback(() => {
       const fetchCenters = async () => {
-        if (centers.length > 0) return;
+        // Проверяем флаг загрузки вместо длины массива
+        if (isFetched) {
+          console.log('[CentersScreen] Centers already fetched:', centers.length);
+          return;
+        }
 
+        // Ждем пока токен станет доступен
+        if (!authState.token) {
+          console.log('[CentersScreen] Waiting for auth token...');
+          // Повторим попытку через 500мс
+          setTimeout(() => {
+            if (authState.token) {
+              console.log('[CentersScreen] Token ready, retrying...');
+              fetchCenters();
+            }
+          }, 500);
+          return;
+        }
+
+        console.log('[CentersScreen] Fetching centers from API...');
         setIsLoading(true);
         try {
           const response = await axios.get<CenterMapDto[]>(`${API_URL}/api/Centers/GetAll`);
+          console.log('[CentersScreen] Centers received:', response.data);
+          console.log('[CentersScreen] Centers count:', response.data.length);
+          
+          if (response.data.length === 0) {
+            console.warn('[CentersScreen] No centers in database!');
+          }
+          
           setCenters(response.data);
-        } catch (err) {
-          console.error('Err while loading centers:', err);
+          setIsFetched(true); // Устанавливаем флаг после успешной загрузки
+        } catch (err: any) {
+          console.error('[CentersScreen] Error loading centers:', err);
+          console.error('[CentersScreen] Error details:', err.response?.data || err.message);
+          if (err.response?.status === 401) {
+            console.error('[CentersScreen] Unauthorized! Retrying...');
+            // Повторная попытка через секунду
+            setTimeout(fetchCenters, 1000);
+          }
         } finally {
           setIsLoading(false);
         }
       };
       fetchCenters();
-    }, [])
+    }, [isFetched, authState.token]) // Добавляем зависимость от токена
   );
 
   const togglePanel = () => {
@@ -76,10 +109,15 @@ export default function CentersScreen() {
   const handleMarkerPress = async (center: any) => {
     setIsLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/api/Centers/GetPriceList/${center.id}`);
+      // Используем GetById вместо несуществующего GetPriceList
+      const response = await axios.get(`${API_URL}/api/Centers/GetById/${center.id}`);
       const data = response.data;
+      
+      // Адаптируем ответ под нужную структуру
       setSelectedCenter({
-        ...data,
+        centerId: data.id || center.id,
+        centerName: data.name || center.name,
+        address: data.address || 'Address not specified',
         services: Array.isArray(data.services) ? data.services : [],
       });
       setIsExpanded(true);
@@ -106,16 +144,27 @@ export default function CentersScreen() {
         style={styles.map}
         initialRegion={INITIAL_REGION}
         showsUserLocation
-        onMapReady={() => setMapReady(true)}
+        onMapReady={() => {
+          console.log('[CentersScreen] Map is ready');
+          setMapReady(true);
+        }}
       >
-        {centers.map((center) => (
-          <Marker
-            key={center.id}
-            coordinate={{ latitude: center.latitude, longitude: center.longitude }}
-            title={center.name}
-            onPress={() => handleMarkerPress(center)}
-          />
-        ))}
+        {centers.length > 0 ? (
+          centers.map((center) => {
+            console.log('[CentersScreen] Rendering marker:', center.name, center.latitude, center.longitude);
+            return (
+              <Marker
+                key={center.id}
+                coordinate={{ latitude: center.latitude, longitude: center.longitude }}
+                title={center.name}
+                onPress={() => handleMarkerPress(center)}
+              />
+            );
+          })
+        ) : (
+          console.log('[CentersScreen] No centers to render markers'),
+          null
+        )}
       </MapView>
 
 

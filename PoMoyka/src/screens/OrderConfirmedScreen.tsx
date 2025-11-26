@@ -1,9 +1,36 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Linking } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, BackHandler } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function OrderConfirmedScreen({ navigation }: any) {
+  console.log("[OrderConfirmed] Screen mounted");
   const [rating, setRating] = useState(0);
+
+  // Предотвращаем возврат на экран оплаты
+  useEffect(() => {
+    console.log("[OrderConfirmed] Setting up BackHandler");
+    const backAction = () => {
+      try {
+        navigation.navigate("Main", { screen: "MyOrder" });
+      } catch (error) {
+        console.error("[OrderConfirmed] Navigation error:", error);
+      }
+      return true; // Предотвращаем стандартное поведение
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      "hardwareBackPress",
+      backAction
+    );
+
+    return () => {
+      try {
+        backHandler.remove();
+      } catch (error) {
+        console.error("[OrderConfirmed] BackHandler cleanup error:", error);
+      }
+    };
+  }, [navigation]);
 
   const handleRate = (value: number) => {
     setRating(value);
@@ -16,10 +43,11 @@ export default function OrderConfirmedScreen({ navigation }: any) {
       </View>
       <Text style={styles.title}>Booking Confirmed!</Text>
       <Text style={styles.subtitle}>
-        Your booking has been placed successfully.
+        Your booking has been placed successfully.{'\n'}
+        Check your{' '}
         <Text
           style={styles.link}
-          onPress={() => navigation.navigate("OrdersScreen")}
+          onPress={() => navigation.navigate("Main", { screen: "MyOrder" })}
         >
           Transaction History
         </Text>

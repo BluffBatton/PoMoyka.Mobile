@@ -202,7 +202,7 @@ const ConfirmOrderScreen = ({ route, navigation }: any) => {
 
     try {
       const response = await axios.post<PaymentResponseDto>(
-        `${API_URL}/api/Booking/CreateBooking`,
+        `${API_URL}/api/Booking/Create`,
         createBookingDto
       );
 

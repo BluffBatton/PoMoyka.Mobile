@@ -56,7 +56,7 @@ export interface AuthProps {
 
 const TOKEN_KEY = "jwt_access_token";
 const REFRESH_TOKEN_KEY = "jwt_refresh_token";
-export const API_URL = "http://10.0.2.2:5145";
+export const API_URL = "https://pomoyka-backend.onrender.com";
 
 const AuthContext = createContext<AuthProps>({} as AuthProps);
 export const useAuth = () => useContext(AuthContext);
