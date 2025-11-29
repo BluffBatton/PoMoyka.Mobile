@@ -1,36 +1,13 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, BackHandler } from "react-native";
+import React, { useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function OrderConfirmedScreen({ navigation }: any) {
+export default function OrderConfirmedScreen({ route, navigation }: any) {
   console.log("[OrderConfirmed] Screen mounted");
+  const { center } = route?.params || {};
   const [rating, setRating] = useState(0);
-
-  // Предотвращаем возврат на экран оплаты
-  useEffect(() => {
-    console.log("[OrderConfirmed] Setting up BackHandler");
-    const backAction = () => {
-      try {
-        navigation.navigate("Main", { screen: "MyOrder" });
-      } catch (error) {
-        console.error("[OrderConfirmed] Navigation error:", error);
-      }
-      return true; // Предотвращаем стандартное поведение
-    };
-
-    const backHandler = BackHandler.addEventListener(
-      "hardwareBackPress",
-      backAction
-    );
-
-    return () => {
-      try {
-        backHandler.remove();
-      } catch (error) {
-        console.error("[OrderConfirmed] BackHandler cleanup error:", error);
-      }
-    };
-  }, [navigation]);
+  
+  console.log("[OrderConfirmed] Center data:", center);
 
   const handleRate = (value: number) => {
     setRating(value);
@@ -43,24 +20,37 @@ export default function OrderConfirmedScreen({ navigation }: any) {
       </View>
       <Text style={styles.title}>Booking Confirmed!</Text>
       <Text style={styles.subtitle}>
-        Your booking has been placed successfully.{'\n'}
-        Check your{' '}
-        <Text
-          style={styles.link}
-          onPress={() => navigation.navigate("Main", { screen: "MyOrder" })}
-        >
-          Transaction History
-        </Text>
-      </Text>
-      <Text style={styles.deliveryText}>
-        Your date is <Text style={styles.bold}>Стас, доделай пж</Text>
+        Your booking has been placed successfully!{'\n'}
+        We will notify you about the details.
       </Text>
 
       <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate("Main", { screen: "MyOrder" })}
+        style={styles.primaryButton}
+        onPress={() => {
+          console.log("[OrderConfirmed] Navigating to MyOrder");
+          navigation.replace("Main", { screen: "MyOrder" });
+        }}
       >
-        <Text style={styles.buttonText}>Go to bookings</Text>
+        <Ionicons name="list" size={20} color="#FFF" style={{ marginRight: 8 }} />
+        <Text style={styles.buttonText}>View My Bookings</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.secondaryButton}
+        onPress={() => {
+          if (center) {
+            console.log("[OrderConfirmed] Navigating to ConfirmOrder with same center:", center.centerName);
+            navigation.replace("ConfirmOrder", { center });
+          } else {
+            console.log("[OrderConfirmed] No center data, navigating to Centers map");
+            navigation.replace("Main", { screen: "Centers" });
+          }
+        }}
+      >
+        <Ionicons name="add-circle-outline" size={20} color="#9E6A52" style={{ marginRight: 8 }} />
+        <Text style={styles.secondaryButtonText} numberOfLines={1} ellipsizeMode="tail">
+          {center ? 'Book Again Here' : 'Make Another Booking'}
+        </Text>
       </TouchableOpacity>
 
       <Text style={styles.rateLabel}>Rate our work</Text>
@@ -105,31 +95,46 @@ const styles = StyleSheet.create({
     color: "#BFBFBF",
     textAlign: "center",
   },
-  deliveryText: {
-    fontSize: 13,
-    color: "#BFBFBF",
-    marginTop: 8,
-    textAlign: "center",
-  },
-  bold: {
-    fontWeight: "600",
-    color: "#FFF",
-  },
   link: {
     color: "#32CD32",
     fontWeight: "600",
   },
-  button: {
-    backgroundColor: "#7A4D35",
+  primaryButton: {
+    backgroundColor: "#9E6A52",
     marginTop: 30,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  secondaryButton: {
+    backgroundColor: "transparent",
+    borderWidth: 2,
+    borderColor: "#9E6A52",
+    marginTop: 12,
     paddingVertical: 12,
-    paddingHorizontal: 50,
-    borderRadius: 10,
+    paddingHorizontal: 40,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
     color: "#FFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
+  },
+  secondaryButtonText: {
+    color: "#9E6A52",
+    fontSize: 16,
+    fontWeight: "700",
   },
   rateLabel: {
     marginTop: 40,

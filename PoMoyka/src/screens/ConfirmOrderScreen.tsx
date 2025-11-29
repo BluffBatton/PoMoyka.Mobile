@@ -216,6 +216,12 @@ const ConfirmOrderScreen = ({ route, navigation }: any) => {
         data,
         signature,
         bookingId,
+        center: {
+          centerId: center.centerId,
+          centerName: center.centerName,
+          address: center.address,
+          services: center.services, // Передаем все услуги
+        },
       });
     } catch (err: any) {
       console.error(

@@ -246,7 +246,18 @@ const ProfileEditScreen = () => {
       }
 
       Alert.alert('Saved', 'Info has been changed.');
-      navigation.goBack();
+      
+      // Безопасный возврат назад
+      try {
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        } else {
+          navigation.navigate('Main', { screen: 'Profile' });
+        }
+      } catch (error: any) {
+        console.error('[ProfileEdit] Navigation error after save:', error?.message);
+        navigation.navigate('Main', { screen: 'Profile' });
+      }
     } catch (err: any) {
       console.error('Save profile error:', err.response?.data || err.message);
       const message =
@@ -285,9 +296,28 @@ const ProfileEditScreen = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => navigation.goBack()}>
-              <Ionicons name="chevron-back" size={28} color="#fff" />
-            </TouchableOpacity>
+            <View style={styles.backButtonWrapper}>
+              <TouchableOpacity 
+                onPress={() => {
+                  console.log('[ProfileEdit] Back button pressed');
+                  try {
+                    if (navigation.canGoBack()) {
+                      navigation.goBack();
+                    } else {
+                      navigation.navigate('Main', { screen: 'Profile' });
+                    }
+                  } catch (error: any) {
+                    console.error('[ProfileEdit] Navigation error:', error?.message);
+                    navigation.navigate('Main', { screen: 'Profile' });
+                  }
+                }}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                activeOpacity={0.6}
+                style={styles.backButton}
+              >
+                <Ionicons name="chevron-back" size={28} color="#fff" />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.headerTitle}>Edit profile</Text>
             <View style={{ width: 28 }} />
           </View>
@@ -398,6 +428,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 18,
     justifyContent: 'space-between',
+  },
+  backButtonWrapper: {
+    zIndex: 100,
+    minWidth: 40,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  backButton: {
+    padding: 10,
   },
   headerTitle: {
     color: '#fff',

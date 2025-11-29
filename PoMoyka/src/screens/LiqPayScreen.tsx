@@ -3,7 +3,7 @@ import { View, Text, ActivityIndicator, Linking, Platform } from "react-native";
 import { WebView } from "react-native-webview";
 
 export default function LiqPayScreen({ route, navigation }: any) {
-  const { data, signature } = route.params;
+  const { data, signature, center } = route.params;
   const [isHandled, setIsHandled] = React.useState(false);
   const [hideWebView, setHideWebView] = React.useState(false); // Скрываем WebView после успеха
   const isMountedRef = React.useRef(true);
@@ -67,8 +67,8 @@ export default function LiqPayScreen({ route, navigation }: any) {
       console.log("[LiqPay] Navigating IMMEDIATELY to close WebView...");
       try {
         // Используем replace чтобы убрать LiqPay из стека и закрыть WebView
-        navigation.replace("Main", { screen: "MyOrder" });
-        console.log("[LiqPay] Navigation to MyOrder successful");
+        navigation.replace("OrderConfirmed", { center });
+        console.log("[LiqPay] Navigation to OrderConfirmed successful");
       } catch (error: any) {
         console.error("[LiqPay] Navigation error:", error?.message || error);
         hasNavigatedRef.current = false; // Сбрасываем при ошибке
