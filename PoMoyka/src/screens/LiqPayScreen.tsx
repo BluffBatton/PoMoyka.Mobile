@@ -1,9 +1,13 @@
 import React from "react";
 import { View, Text, ActivityIndicator, Linking, Platform } from "react-native";
 import { WebView } from "react-native-webview";
+import axios from "axios";
+import { API_URL } from "../context/AuthContext";
 
 export default function LiqPayScreen({ route, navigation }: any) {
-  const { data, signature, center } = route.params;
+  const { data, signature, center, bookingId } = route.params;
+  
+  console.log("[LiqPay] Screen mounted with params:", { bookingId, centerName: center?.centerName });
   const [isHandled, setIsHandled] = React.useState(false);
   const [hideWebView, setHideWebView] = React.useState(false); // Скрываем WebView после успеха
   const isMountedRef = React.useRef(true);
@@ -40,7 +44,7 @@ export default function LiqPayScreen({ route, navigation }: any) {
     }
 
     if (url.includes("checkout/success") || url.includes("result/success") || url.includes("sandbox")) {
-      console.log("[LiqPay] SUCCESS URL detected!");
+      console.log("[LiqPay] ✅ SUCCESS URL detected!");
       
       // Проверяем что навигация еще не произошла
       if (hasNavigatedRef.current || isHandled) {
@@ -52,7 +56,6 @@ export default function LiqPayScreen({ route, navigation }: any) {
       hasNavigatedRef.current = true;
       setIsHandled(true);
       console.log("[LiqPay] Handler flag set");
-      console.log("[LiqPay] Payment is successful!");
       
       // Очищаем предыдущий timeout если есть
       if (timeoutRef.current) {
@@ -63,35 +66,84 @@ export default function LiqPayScreen({ route, navigation }: any) {
       setHideWebView(true);
       console.log("[LiqPay] WebView hidden");
       
-      // НЕМЕДЛЕННАЯ навигация без задержки
-      console.log("[LiqPay] Navigating IMMEDIATELY to close WebView...");
-      try {
-        // Используем replace чтобы убрать LiqPay из стека и закрыть WebView
-        navigation.replace("OrderConfirmed", { center });
-        console.log("[LiqPay] Navigation to OrderConfirmed successful");
-      } catch (error: any) {
-        console.error("[LiqPay] Navigation error:", error?.message || error);
-        hasNavigatedRef.current = false; // Сбрасываем при ошибке
-        setHideWebView(false);
-      }
+      // ВАЖНО: Вызываем Complete на backend (имитация LiqPay callback)
+      console.log("[LiqPay] Calling Complete endpoint for bookingId:", bookingId);
+      
+      axios.post(`${API_URL}/api/Booking/Complete/${bookingId}`)
+        .then(() => {
+          console.log("[LiqPay] ✅ Booking completed successfully");
+          
+          if (!isMountedRef.current) {
+            console.log("[LiqPay] Component unmounted, skipping navigation");
+            return;
+          }
+          
+          // Навигация после успешного Complete
+          console.log("[LiqPay] Navigating to OrderConfirmed...");
+          navigation.replace("OrderConfirmed", { 
+            center,
+            bookingId 
+          });
+          console.log("[LiqPay] Navigation to OrderConfirmed successful");
+        })
+        .catch((error: any) => {
+          console.error("[LiqPay] ❌ Failed to complete booking:", error.response?.data || error.message);
+          
+          if (!isMountedRef.current) return;
+          
+          // Даже если Complete failed, показываем OrderConfirmed
+          // (возможно статус уже Done)
+          navigation.replace("OrderConfirmed", { 
+            center,
+            bookingId 
+          });
+        });
+      
     } else if (url.includes("checkout/fail") || url.includes("result/fail") || url.includes("error")) {
+      console.log("[LiqPay] ❌ FAIL URL detected!");
+      
+      if (hasNavigatedRef.current || isHandled) {
+        console.log("[LiqPay] Already handled, returning");
+        return;
+      }
+      
       setIsHandled(true);
-      console.log("[LiqPay] Payment failed");
+      hasNavigatedRef.current = true;
       
       // Очищаем предыдущий timeout если есть
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
       
-      // Возврат назад с задержкой
-      timeoutRef.current = setTimeout(() => {
-        if (!isMountedRef.current) {
-          console.log("[LiqPay] Component unmounted, skipping back navigation");
-          return;
-        }
-        console.log("[LiqPay] Navigating back after payment failure");
-        navigation.goBack();
-      }, 500);
+      setHideWebView(true);
+      
+      // Вызываем Cancel на backend
+      console.log("[LiqPay] Calling Cancel endpoint for bookingId:", bookingId);
+      
+      axios.post(`${API_URL}/api/Booking/Cancel/${bookingId}`)
+        .then(() => {
+          console.log("[LiqPay] ✅ Booking cancelled successfully");
+          
+          if (!isMountedRef.current) return;
+          
+          // Возврат назад после отмены
+          timeoutRef.current = setTimeout(() => {
+            if (!isMountedRef.current) return;
+            console.log("[LiqPay] Navigating back after cancellation");
+            navigation.goBack();
+          }, 1000);
+        })
+        .catch((error: any) => {
+          console.error("[LiqPay] ❌ Failed to cancel booking:", error.response?.data || error.message);
+          
+          if (!isMountedRef.current) return;
+          
+          // Возврат назад даже если Cancel failed
+          timeoutRef.current = setTimeout(() => {
+            if (!isMountedRef.current) return;
+            navigation.goBack();
+          }, 1000);
+        });
     }
   };
 
