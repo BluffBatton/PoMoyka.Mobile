@@ -15,6 +15,7 @@ import CentersScreen from '../screens/CentersScreen';
 import CarEditScreen from '../screens/CarEditScreen';
 import ConfirmOrderScreen from '../screens/ConfirmOrderScreen';
 import OrderConfirmedScreen from '../screens/OrderConfirmedScreen';
+import TransactionsScreen from '../screens/TransactionsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -119,6 +120,11 @@ return authState.authenticated ? (
       <Stack.Screen
         name="OrderConfirmed"
         component={OrderConfirmedScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="TransactionHistory"
+        component={TransactionsScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>
