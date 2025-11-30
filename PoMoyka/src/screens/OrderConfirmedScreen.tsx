@@ -13,6 +13,8 @@ export default function OrderConfirmedScreen({ route, navigation }: any) {
   const [booking, setBooking] = useState<any>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [rating, setRating] = useState(0);
+  const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
   
   const isMountedRef = useRef(true);
   
@@ -50,6 +52,25 @@ export default function OrderConfirmedScreen({ route, navigation }: any) {
         }
 
         setBooking(response.data);
+        
+        // Проверяем, есть ли уже рейтинг
+        // ВАЖНО: Бэкенд уже конвертирует рейтинг из 0-4 в 1-5, используем как есть
+        const existingRating = response.data.ratingValue || 
+                               response.data.transaction?.ratingValue || 
+                               response.data.rating?.ratingValue;
+        
+        if (existingRating !== null && existingRating !== undefined) {
+          let ratingNum = Number(existingRating);
+          console.log("[OrderConfirmed] Raw rating value from API:", ratingNum);
+          // Бэкенд уже конвертировал, просто используем значение как есть
+          if (ratingNum >= 1 && ratingNum <= 5) {
+            setRating(ratingNum);
+            setRatingSubmitted(true);
+            console.log("[OrderConfirmed] ✅ Existing rating found (backend already converted):", ratingNum);
+          } else {
+            console.warn("[OrderConfirmed] ⚠️ Unexpected rating value:", ratingNum, "(expected 1-5)");
+          }
+        }
         
         const currentStatus = String(response.data.status || '').toLowerCase();
         
@@ -112,10 +133,110 @@ export default function OrderConfirmedScreen({ route, navigation }: any) {
     checkBookingStatus();
   }, [bookingId, retryCount, navigation]);
 
-  const handleRate = (value: number) => {
+  const handleRate = async (value: number) => {
     setRating(value);
     console.log("[OrderConfirmed] User rated:", value);
-    // TODO: Отправить рейтинг на backend
+    
+    // Получаем transactionId из booking данных (может быть в разных местах)
+    const transactionId = booking?.transactionId || 
+                          booking?.transaction?.id || 
+                          booking?.transactionId;
+    
+    console.log("[OrderConfirmed] Booking data:", booking);
+    console.log("[OrderConfirmed] Transaction ID:", transactionId);
+    
+    if (!transactionId) {
+      console.error("[OrderConfirmed] ❌ No transactionId found in booking data");
+      Alert.alert("Error", "Cannot submit rating: transaction information is missing.");
+      return;
+    }
+
+    // Проверяем, не был ли рейтинг уже отправлен
+    if (ratingSubmitted) {
+      console.log("[OrderConfirmed] Rating already submitted, ignoring");
+      return;
+    }
+
+    setIsSubmittingRating(true);
+
+    try {
+      console.log("[OrderConfirmed] Submitting rating:", {
+        transactionId,
+        rating: value,
+      });
+
+      // RatingValue должен быть от 1 до 5, но в бэке это RatingNumber enum: One=0, Two=1, etc.
+      // Поэтому нужно уменьшить на 1
+      const ratingValue = value - 1; // Конвертируем 1-5 в 0-4 (enum: One=0, Two=1, etc.)
+      
+      console.log("[OrderConfirmed] Selected rating (1-5):", value);
+      console.log("[OrderConfirmed] Rating value (0-4 for backend):", ratingValue);
+      console.log("[OrderConfirmed] Transaction ID:", transactionId);
+      
+      // Бэкенд ожидает PascalCase
+      const ratingCreateDto = {
+        TransactionId: transactionId,
+        RatingValue: ratingValue,
+      };
+
+      const url = `${API_URL}/api/Rating/Create`;
+      console.log("[OrderConfirmed] Rating URL:", url);
+      console.log("[OrderConfirmed] Rating DTO (PascalCase):", JSON.stringify(ratingCreateDto, null, 2));
+
+      const response = await axios.post(
+        url, 
+        ratingCreateDto,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log("[OrderConfirmed] ✅ Rating created successfully:", response.data);
+      console.log("[OrderConfirmed] Response rating value:", response.data?.ratingValue);
+      
+      setRatingSubmitted(true);
+      
+      // Обновляем данные booking, чтобы получить актуальный рейтинг
+      if (bookingId) {
+        try {
+          const bookingResponse = await axios.get(`${API_URL}/api/Booking/GetById/${bookingId}`);
+          if (bookingResponse.data) {
+            setBooking(bookingResponse.data);
+            console.log("[OrderConfirmed] Booking data updated with rating");
+            console.log("[OrderConfirmed] Updated booking ratingValue:", bookingResponse.data.ratingValue);
+            console.log("[OrderConfirmed] Updated booking transaction ratingValue:", bookingResponse.data.transaction?.ratingValue);
+          }
+        } catch (err) {
+          console.error("[OrderConfirmed] Failed to refresh booking data:", err);
+          // Не критично, продолжаем
+        }
+      }
+      
+      Alert.alert('Success', 'Rating submitted successfully!');
+    } catch (err: any) {
+      console.error("[OrderConfirmed] ❌ Error submitting rating:", err.response?.data || err.message);
+      
+      let errorMessage = 'Failed to submit rating';
+      if (err.response?.status === 404) {
+        errorMessage = 'Rating endpoint not found. Please try again later.';
+      } else if (err.response?.status === 401) {
+        errorMessage = 'Unauthorized. Please login again.';
+      } else if (err.response?.status === 403) {
+        errorMessage = 'Access denied. Only clients can rate bookings.';
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
+      // Сбрасываем рейтинг при ошибке, чтобы пользователь мог попробовать снова
+      setRating(0);
+    } finally {
+      setIsSubmittingRating(false);
+    }
   };
 
   // ⏳ LOADING / PENDING STATE
@@ -275,19 +396,40 @@ export default function OrderConfirmedScreen({ route, navigation }: any) {
         </Text>
       </TouchableOpacity>
 
-      <Text style={styles.rateLabel}>Rate our work</Text>
-      <View style={styles.stars}>
-        {[1, 2, 3, 4, 5].map((value) => (
-          <TouchableOpacity key={value} onPress={() => handleRate(value)}>
-            <Ionicons
-              name={value <= rating ? "star" : "star-outline"}
-              size={30}
-              color={value <= rating ? "#FFD700" : "#999"}
-              style={{ marginHorizontal: 4 }}
-            />
-          </TouchableOpacity>
-        ))}
-      </View>
+      {/* Показываем рейтинг только для завершенных бронирований с transactionId */}
+      {booking && booking.status?.toLowerCase() === 'done' && 
+       (booking.transactionId || booking.transaction?.id) && (
+        <>
+          <Text style={styles.rateLabel}>
+            {ratingSubmitted ? "Your rating" : "Rate our work"}
+          </Text>
+          {isSubmittingRating && (
+            <ActivityIndicator size="small" color="#FFD700" style={{ marginVertical: 10 }} />
+          )}
+          <View style={styles.stars}>
+            {[1, 2, 3, 4, 5].map((value) => (
+              <TouchableOpacity
+                key={value}
+                onPress={() => !ratingSubmitted && !isSubmittingRating && handleRate(value)}
+                disabled={ratingSubmitted || isSubmittingRating}
+                style={{ opacity: ratingSubmitted ? 1 : 1 }}
+              >
+                <Ionicons
+                  name={value <= rating ? "star" : "star-outline"}
+                  size={30}
+                  color={value <= rating ? "#FFD700" : "#999"}
+                  style={{ marginHorizontal: 4 }}
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+          {ratingSubmitted && rating > 0 && (
+            <Text style={styles.ratingSubmittedText}>
+              Thank you for your feedback! ✓
+            </Text>
+          )}
+        </>
+      )}
     </View>
   );
 }
@@ -411,5 +553,12 @@ const styles = StyleSheet.create({
   stars: {
     flexDirection: "row",
     marginTop: 10,
+  },
+  ratingSubmittedText: {
+    marginTop: 8,
+    color: "#32CD32",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
   },
 });

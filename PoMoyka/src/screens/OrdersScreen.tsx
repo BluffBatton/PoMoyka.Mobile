@@ -116,27 +116,22 @@ const OrdersScreen = () => {
             const transactionId = item.transactionId || item.transaction?.id || null;
             // Ищем рейтинг в разных местах (может быть в transaction.ratingValue или напрямую)
             let ratingValue = null;
-            if (item.ratingValue !== undefined && item.ratingValue !== null) {
-              const val = Number(item.ratingValue);
-              // Если значение от 0-4 (enum), конвертируем в 1-5 для отображения
-              if (val >= 0 && val <= 4) {
-                ratingValue = val + 1; // 0->1, 1->2, ..., 4->5
-              } else if (val >= 1 && val <= 5) {
-                ratingValue = val; // Уже в правильном формате
-              }
-            } else if (item.transaction?.ratingValue !== undefined && item.transaction?.ratingValue !== null) {
-              const val = Number(item.transaction.ratingValue);
-              if (val >= 0 && val <= 4) {
-                ratingValue = val + 1;
-              } else if (val >= 1 && val <= 5) {
+            // ВАЖНО: Бэкенд УЖЕ конвертирует рейтинг из 0-4 в 1-5 в GetMyBookingsQueryHandler:
+            // RatingValue = (int)b.Transaction.Rating.RatingNumber + 1
+            // Поэтому мы просто используем значение как есть, БЕЗ дополнительной конвертации!
+            const rawRating = item.ratingValue ?? item.transaction?.ratingValue ?? item.rating?.ratingValue;
+            
+            if (rawRating !== undefined && rawRating !== null) {
+              const val = Number(rawRating);
+              console.log(`[OrdersScreen] Raw rating value from API: ${val} (backend already converted 0-4 -> 1-5)`);
+              
+              // Бэкенд уже конвертировал, просто используем значение как есть
+              if (val >= 1 && val <= 5) {
                 ratingValue = val;
-              }
-            } else if (item.rating?.ratingValue !== undefined && item.rating?.ratingValue !== null) {
-              const val = Number(item.rating.ratingValue);
-              if (val >= 0 && val <= 4) {
-                ratingValue = val + 1;
-              } else if (val >= 1 && val <= 5) {
-                ratingValue = val;
+                console.log(`[OrdersScreen] ✅ Using rating value as-is: ${ratingValue} (backend already converted to 1-5)`);
+              } else {
+                console.warn(`[OrdersScreen] ⚠️ Unexpected rating value: ${val} (expected 1-5, backend should convert)`);
+                ratingValue = null;
               }
             }
             const centerAddress = item.centerAddress || item.center?.address || null;
@@ -240,7 +235,16 @@ const OrdersScreen = () => {
     setIsPaying(booking.id);
     
     try {
-      console.log('[OrdersScreen] Creating payment for booking:', booking.id);
+      console.log('[OrdersScreen] Initiating payment for existing booking:', booking.id);
+      
+      // Сначала отменяем старое бронирование, чтобы не было дублей
+      try {
+        await axios.post(`${API_URL}/api/Booking/Cancel/${booking.id}`);
+        console.log('[OrdersScreen] Old booking cancelled:', booking.id);
+      } catch (cancelErr: any) {
+        // Если отмена не удалась (может быть уже отменено), продолжаем
+        console.log('[OrdersScreen] Could not cancel old booking (may already be cancelled):', cancelErr.response?.status);
+      }
       
       // Создаем новое бронирование (это инициирует оплату)
       const createBookingDto = {
@@ -350,14 +354,19 @@ const OrdersScreen = () => {
       // Поэтому нужно уменьшить на 1
       const ratingValue = selectedRating - 1; // Конвертируем 1-5 в 0-4 (enum: One=0, Two=1, etc.)
       
+      console.log('[OrdersScreen] Selected rating (1-5):', selectedRating);
+      console.log('[OrdersScreen] Rating value (0-4 for backend):', ratingValue);
+      console.log('[OrdersScreen] Transaction ID:', selectedBooking.transactionId);
+      
+      // Бэкенд ожидает PascalCase
       const ratingCreateDto = {
-        transactionId: selectedBooking.transactionId,
-        ratingValue: ratingValue,
+        TransactionId: selectedBooking.transactionId,
+        RatingValue: ratingValue,
       };
 
       const url = `${API_URL}/api/Rating/Create`;
       console.log('[OrdersScreen] Rating URL:', url);
-      console.log('[OrdersScreen] Rating DTO:', JSON.stringify(ratingCreateDto, null, 2));
+      console.log('[OrdersScreen] Rating DTO (PascalCase):', JSON.stringify(ratingCreateDto, null, 2));
 
       const response = await axios.post(
         url, 
@@ -369,7 +378,8 @@ const OrdersScreen = () => {
         }
       );
       
-      console.log('[OrdersScreen] Rating created successfully:', response.data);
+      console.log('[OrdersScreen] ✅ Rating created successfully:', response.data);
+      console.log('[OrdersScreen] Response rating value:', response.data?.ratingValue);
       
       // Закрываем модальное окно рейтинга
       setRatingModalVisible(false);
@@ -380,7 +390,11 @@ const OrdersScreen = () => {
       // Обновляем список бронирований
       setSelectedBooking(null);
       setSelectedRating(0);
-      fetchBookings(); // Обновляем список
+      
+      // Небольшая задержка перед обновлением, чтобы бэкенд успел обработать
+      setTimeout(() => {
+        fetchBookings();
+      }, 500); // Обновляем список
       
       // Автоматически закрываем окно успеха через 2 секунды
       setTimeout(() => {
@@ -440,7 +454,8 @@ const OrdersScreen = () => {
 
   // Функция для отображения звезд рейтинга
   const renderStars = (rating: number) => {
-return (
+    console.log(`[OrdersScreen] renderStars called with rating: ${rating}`);
+    return (
       <View style={styles.ratingStars}>
         {[1, 2, 3, 4, 5].map((star) => (
           <Ionicons
