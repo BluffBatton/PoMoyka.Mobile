@@ -4,7 +4,7 @@ import MapView, { Marker, Region } from 'react-native-maps';
 import axios from 'axios';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuth, API_URL } from '../context/AuthContext';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
@@ -14,6 +14,8 @@ interface CenterMapDto {
   latitude: number;
   longitude: number;
   address?: string;
+  averageRating?: number | null;
+  totalRatings?: number;
 }
 interface PricedServiceDto {
   centerServiceId: string;
@@ -25,6 +27,8 @@ interface CenterPricelistDto {
   centerName: string;
   address: string;
   services: PricedServiceDto[];
+  averageRating?: number | null;
+  totalRatings?: number;
 }
 
 const INITIAL_REGION: Region = {
@@ -32,6 +36,36 @@ const INITIAL_REGION: Region = {
   longitude: 36.2304,
   latitudeDelta: 0.0922,
   longitudeDelta: 0.0421,
+};
+
+// Кастомный компонент маркера с названием центра
+const CustomMarker = ({ center, onPress }: { center: CenterMapDto; onPress: () => void }) => {
+  return (
+    <Marker
+      coordinate={{ latitude: center.latitude, longitude: center.longitude }}
+      onPress={onPress}
+      anchor={{ x: 0.5, y: 1 }}
+    >
+      <View style={markerStyles.container}>
+        <View style={markerStyles.markerIcon}>
+          <MaterialIcons name="location-on" size={32} color="#9E6A52" />
+        </View>
+        <View style={markerStyles.labelContainer}>
+          <Text style={markerStyles.labelText} numberOfLines={1}>
+            {center.name}
+          </Text>
+          {center.averageRating !== null && center.averageRating !== undefined && (
+            <View style={markerStyles.ratingContainer}>
+              <Ionicons name="star" size={12} color="#FFD700" />
+              <Text style={markerStyles.ratingText}>
+                {center.averageRating.toFixed(1)}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </Marker>
+  );
 };
 
 export default function CentersScreen() {
@@ -113,12 +147,27 @@ export default function CentersScreen() {
       const response = await axios.get(`${API_URL}/api/Centers/GetById/${center.id}`);
       const data = response.data;
       
+      console.log('[CentersScreen] Center data received:', data);
+      console.log('[CentersScreen] Average rating:', data.averageRating);
+      console.log('[CentersScreen] Total ratings:', data.totalRatings);
+      
+      // Обновляем рейтинг в списке центров
+      setCenters(prevCenters => 
+        prevCenters.map(c => 
+          c.id === center.id 
+            ? { ...c, averageRating: data.averageRating, totalRatings: data.totalRatings }
+            : c
+        )
+      );
+      
       // Адаптируем ответ под нужную структуру
       setSelectedCenter({
         centerId: data.id || center.id,
         centerName: data.name || center.name,
         address: data.address || 'Address not specified',
         services: Array.isArray(data.services) ? data.services : [],
+        averageRating: data.averageRating ?? null,
+        totalRatings: data.totalRatings ?? 0,
       });
       setIsExpanded(true);
       Animated.timing(slideAnim, {
@@ -153,10 +202,9 @@ export default function CentersScreen() {
           centers.map((center) => {
             console.log('[CentersScreen] Rendering marker:', center.name, center.latitude, center.longitude);
             return (
-              <Marker
+              <CustomMarker
                 key={center.id}
-                coordinate={{ latitude: center.latitude, longitude: center.longitude }}
-                title={center.name}
+                center={center}
                 onPress={() => handleMarkerPress(center)}
               />
             );
@@ -172,8 +220,25 @@ export default function CentersScreen() {
         <Animated.View style={[styles.infoPanel, { transform: [{ translateY: panelTranslateY }] }]}>
           <TouchableOpacity onPress={togglePanel}>
             <View style={styles.infoHeader}>
-              <Text style={styles.centerName}>{selectedCenter.address}</Text>
-              <Text style={styles.centerRating}>3/5⭐ TODO</Text>
+              <View style={styles.infoHeaderLeft}>
+                <Text style={styles.centerName}>{selectedCenter.centerName}</Text>
+                <Text style={styles.centerAddress}>{selectedCenter.address}</Text>
+                {selectedCenter.averageRating !== null && selectedCenter.averageRating !== undefined ? (
+                  <View style={styles.ratingRow}>
+                    <Ionicons name="star" size={16} color="#FFD700" />
+                    <Text style={styles.centerRating}>
+                      {selectedCenter.averageRating.toFixed(1)}
+                    </Text>
+                    {selectedCenter.totalRatings && selectedCenter.totalRatings > 0 && (
+                      <Text style={styles.ratingCount}>
+                        ({selectedCenter.totalRatings})
+                      </Text>
+                    )}
+                  </View>
+                ) : (
+                  <Text style={styles.noRatingText}>No ratings yet</Text>
+                )}
+              </View>
               <MaterialIcons
                 name={isExpanded ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
                 size={22}
@@ -243,14 +308,42 @@ const styles = StyleSheet.create({
   infoHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+  },
+  infoHeaderLeft: {
+    flex: 1,
+    marginRight: 10,
   },
   centerName: {
     color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  centerAddress: {
+    color: '#ccc',
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  centerRating: {
+    color: '#FFD700',
     fontWeight: '600',
     fontSize: 14,
   },
-  centerRating: { color: '#ffc107', fontWeight: '600', marginLeft: 10 },
+  ratingCount: {
+    color: '#999',
+    fontSize: 12,
+  },
+  noRatingText: {
+    color: '#999',
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
   serviceList: { marginTop: 8 },
   serviceText: { color: '#fff', fontSize: 13, marginBottom: 3 },
 
@@ -266,6 +359,52 @@ const styles = StyleSheet.create({
   },
   selectText: {
     color: '#fff',
+    fontWeight: '600',
+  },
+});
+
+// Стили для кастомного маркера
+const markerStyles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  markerIcon: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  labelContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 4,
+    maxWidth: 150,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#9E6A52',
+  },
+  labelText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    gap: 2,
+  },
+  ratingText: {
+    color: '#FFD700',
+    fontSize: 10,
     fontWeight: '600',
   },
 });
